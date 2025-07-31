@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pandas
+google-cloud-aiplatform
+google-cloud-secretmanager
+openai
+httpx
+beautifulsoup4
+playwright
