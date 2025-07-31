@@ -1,3 +1,5 @@
+print("🔥 Starting main.py")
+
 import pandas as pd
 import json
 import os
