@@ -7,8 +7,6 @@ openai
 httpx
 beautifulsoup4
 playwright
-<<<<<<< HEAD
 matplotlib
 python-multipart
-=======
->>>>>>> a3bddf179bafce7c4841d5657707f7cea3ca519f
+
