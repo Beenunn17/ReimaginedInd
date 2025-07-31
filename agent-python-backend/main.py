@@ -22,8 +22,11 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
+    # You will need to add your deployed frontend URL here later
+    allow_origins=["http://localhost:5173", "https://braidai-frontend-*.run.app"], 
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"],
 )
 
 # --- SEO Agent Endpoints ---
