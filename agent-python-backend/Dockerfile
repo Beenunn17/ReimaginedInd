@@ -19,7 +19,7 @@ COPY . .
 EXPOSE 8000
 
 # Define environment variable for the port
-ENV PORT 8000
+ENV PORT=8000
 
 # Run uvicorn server when the container launches
 # Use 0.0.0.0 to listen on all network interfaces

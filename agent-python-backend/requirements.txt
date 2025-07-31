@@ -2,8 +2,10 @@ fastapi
 uvicorn
 pandas
 google-cloud-aiplatform
-google-cloud-secretmanager
+google-cloud-secret-manager
 openai
 httpx
 beautifulsoup4
 playwright
+matplotlib
+python-multipart
