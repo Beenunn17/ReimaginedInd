@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 
-output_dir = '../agent-frontend/public/data'
+output_dir = './data'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 

@@ -23,7 +23,7 @@ from agents.creative_agent import generate_ad_creative
 PROJECT_ID = "braidai"
 LOCATION = "us-central1"
 MODEL_NAME = "gemini-2.5-pro"
-DATA_DIR = "../agent-frontend/public/data/"
+DATA_DIR = "./data/"
 
 app = FastAPI()
 
