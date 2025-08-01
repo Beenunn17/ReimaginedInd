@@ -29,12 +29,7 @@ app = FastAPI()
 
 # 👇 2. ADD THIS ENTIRE BLOCK
 # This allows your frontend to communicate with your backend
-origins = [
-    # The URL of your deployed frontend
-    "https://braidai-frontend-362912017141.us-central1.run.app",
-    # The URL for local development
-    "http://localhost:5173",
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
