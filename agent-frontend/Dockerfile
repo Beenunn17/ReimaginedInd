@@ -1,34 +1,37 @@
-# Stage 1: Build the React application with Vite
+# Stage 1: Build the React application
 FROM node:20-alpine AS build
 
-# This line tells Docker to expect a build-time variable named VITE_API_BASE_URL
+# Accept the API URL as a build argument from the GitHub Actions workflow
 ARG VITE_API_BASE_URL
+
+# --- DEBUGGING STEP ---
+# This will print the value of the variable to the build logs.
+# If it shows as empty, the GitHub secret is not set correctly.
+RUN echo "The API URL passed to the build is: [${VITE_API_BASE_URL}]"
+
+# Fail the build if the secret is missing or empty
+RUN if [ -z "${VITE_API_BASE_URL}" ]; then echo "Error: VITE_API_BASE_URL is not set. Please check your GitHub repository secrets." && exit 1; fi
 
 WORKDIR /app
 
-# This command creates the .env.production file inside the Docker container
-# It ensures the production build uses the correct API URL from your GitHub Secret
+# Create the .env.production file that Vite will use for the build
 RUN echo "VITE_API_BASE_URL=${VITE_API_BASE_URL}" > .env.production
 
-# Copy dependencies
 COPY package*.json ./
 RUN npm install
-
-# Copy source code and build
 COPY . .
 RUN npm run build
 
-# Stage 2: Serve the production build with NGINX
+# Stage 2: Serve the built application with NGINX
 FROM nginx:1.25-alpine
 
-# Copy built frontend from the previous stage
+# Copy the static files from the build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Use custom NGINX config to serve on port 8080 and support SPA routing
+# Copy the custom NGINX configuration to support single-page app routing
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Cloud Run expects the container to listen on port 8080
+# Expose the port Cloud Run expects
 EXPOSE 8080
 
-# Run NGINX in the foreground
 CMD ["nginx", "-g", "daemon off;"]
