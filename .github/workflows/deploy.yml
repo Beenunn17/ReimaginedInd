@@ -37,16 +37,19 @@ jobs:
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
 
+      # Build and push the backend service
       - name: Build and Push Backend Image
         run: |-
           docker build -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }} ./agent-python-backend
           docker push ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }}
 
+      # Build and push the frontend service
       - name: Build and Push Frontend Image
         run: |-
           docker build --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }} -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} ./agent-frontend
           docker push ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
 
+      # Deploy the backend service to Cloud Run
       - name: Deploy Backend to Cloud Run
         run: |-
           gcloud run deploy ${{ env.BACKEND_SERVICE }} \
@@ -56,6 +59,7 @@ jobs:
             --allow-unauthenticated \
             --port 8000
 
+      # Deploy the frontend service to Cloud Run
       - name: Deploy Frontend to Cloud Run
         run: |-
           gcloud run deploy ${{ env.FRONTEND_SERVICE }} \
