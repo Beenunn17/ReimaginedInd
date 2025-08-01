@@ -46,14 +46,15 @@ jobs:
           tags: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }}
 
       # Build and push the frontend service using a robust action
+      # Build and push the frontend service
       - name: Build and Push Frontend Image
         uses: docker/build-push-action@v5
         with:
           context: ./agent-frontend
           push: true
-          build-args: VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+          build-args: VITE_API_BASE_URL=https://braidai-backend-362912017141.us-central1.run.app
           tags: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
-
+          
       - name: Deploy Backend to Cloud Run
         run: |-
           gcloud run deploy ${{ env.BACKEND_SERVICE }} \
