@@ -243,7 +243,7 @@ function SEOptimizerPage() {
     setAnalysisResult(null);
     setError(null);
 
-    ws.current = new WebSocket(`ws://${API_BASE_URL.replace(/^https?:\/\//, '')}/ws/seo-analysis`);
+    ws.current = new WebSocket(`wss://${API_BASE_URL.replace(/^https?:\/\//, '')}/ws/seo-analysis`);
 
     ws.current.onopen = () => {
       console.log("WebSocket connected");
