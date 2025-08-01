@@ -1,7 +1,14 @@
 # Stage 1: Build the React application with Vite
-FROM node:20-alpine as build
+FROM node:20-alpine AS build
+
+# This line tells Docker to expect a build-time variable named VITE_API_BASE_URL
+ARG VITE_API_BASE_URL
 
 WORKDIR /app
+
+# This command creates the .env.production file inside the Docker container
+# It ensures the production build uses the correct API URL from your GitHub Secret
+RUN echo "VITE_API_BASE_URL=${VITE_API_BASE_URL}" > .env.production
 
 # Copy dependencies
 COPY package*.json ./
@@ -14,7 +21,7 @@ RUN npm run build
 # Stage 2: Serve the production build with NGINX
 FROM nginx:1.25-alpine
 
-# Copy built frontend from previous stage
+# Copy built frontend from the previous stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Use custom NGINX config to serve on port 8080 and support SPA routing
