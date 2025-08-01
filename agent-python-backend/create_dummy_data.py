@@ -14,20 +14,29 @@ def create_all_datasets():
     num_records = 1000
     start_date = datetime(2022, 1, 1)
 
-    # 1. Marketing Mix Model (Advanced)
+    # 1. Marketing Mix Model (Advanced) - More Detailed
     dates = [start_date + timedelta(weeks=i) for i in range(156)] # 3 years of weekly data
+    num_weeks = len(dates)
     mmm_data = {
         'Date': dates,
-        'Sales': np.random.uniform(50000, 200000, len(dates)).round(2),
-        'TV_Spend': np.random.uniform(10000, 50000, len(dates)).round(2),
-        'Radio_Spend': np.random.uniform(5000, 20000, len(dates)).round(2),
-        'Social_Media_Spend': np.random.uniform(8000, 30000, len(dates)).round(2),
-        'Search_Spend': np.random.uniform(12000, 40000, len(dates)).round(2),
-        'Competitor_Spend': np.random.uniform(30000, 100000, len(dates)).round(2),
-        'Inflation_Index': np.linspace(1.0, 1.08, len(dates)).round(3)
+        'Sales': np.random.uniform(150000, 500000, num_weeks).round(2),
+        # --- 10 Media Channels ---
+        'TV_Spend': np.random.uniform(20000, 70000, num_weeks).round(2),
+        'Radio_Spend': np.random.uniform(10000, 30000, num_weeks).round(2),
+        'Social_Media_Spend': np.random.uniform(15000, 50000, num_weeks).round(2),
+        'Search_Spend': np.random.uniform(25000, 60000, num_weeks).round(2),
+        'OOH_Spend': np.random.uniform(5000, 25000, num_weeks).round(2),
+        'Print_Spend': np.random.uniform(2000, 15000, num_weeks).round(2),
+        'Affiliate_Spend': np.random.uniform(8000, 20000, num_weeks).round(2),
+        'Direct_Mail_Spend': np.random.uniform(3000, 18000, num_weeks).round(2),
+        'Podcast_Spend': np.random.uniform(4000, 22000, num_weeks).round(2),
+        'Influencer_Spend': np.random.uniform(6000, 35000, num_weeks).round(2),
+        # --- External Factors ---
+        'Competitor_Spend': np.random.uniform(50000, 150000, num_weeks).round(2),
+        'Inflation_Index': np.linspace(1.0, 1.08, num_weeks).round(3)
     }
     pd.DataFrame(mmm_data).to_csv(os.path.join(output_dir, 'mmm_advanced_data.csv'), index=False)
-    print("Created mmm_advanced_data.csv")
+    print("Created detailed mmm_advanced_data.csv")
 
     # 2. Customer Churn
     churn_data = {
