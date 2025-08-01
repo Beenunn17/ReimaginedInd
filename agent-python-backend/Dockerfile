@@ -19,5 +19,5 @@ RUN python create_dummy_data.py
 # Make port 8000 available to the world outside this container
 EXPOSE 8000
 
-# Command to run the application using Gunicorn
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000"]
+# Command to run the application using Gunicorn, listening on the port provided by Cloud Run
+CMD exec gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind "0.0.0.0:$PORT"
