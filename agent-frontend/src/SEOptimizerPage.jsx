@@ -12,9 +12,8 @@ import ScienceIcon from '@mui/icons-material/Science';
 import PageviewIcon from '@mui/icons-material/Pageview';
 import ContentPasteSearchIcon from '@mui/icons-material/ContentPasteSearch';
 
-// Best practice: Store API base URL in environment variables
+// Use Vite's syntax for environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-
 
 // --- Sub-Component for Scope Input & Sitemap Validation ---
 const ScopeSection = ({ yourSite, setYourSite, competitorSites, setCompetitorSites, onValidate, isValidating, sitemapStatus, setSitemapStatus }) => {
@@ -22,8 +21,6 @@ const ScopeSection = ({ yourSite, setYourSite, competitorSites, setCompetitorSit
   const handleManualSitemapChange = (index, value) => {
     const newStatus = [...sitemapStatus];
     newStatus[index].manual_sitemap_url = value;
-    // We can also add logic here to mark it as 'provided'
-    // newStatus[index].status = 'provided'; 
     setSitemapStatus(newStatus);
   };
 
@@ -120,7 +117,6 @@ const PromptSection = ({ prompts, onGenerate, isGenerating, error }) => (
 const ReportDisplay = ({ result }) => {
     if (!result) return null;
     
-    // Helper to render report sections
     const renderSection = (title, data, icon) => (
       <Grid item xs={12} md={6} key={title}>
         <Accordion defaultExpanded>
@@ -128,7 +124,6 @@ const ReportDisplay = ({ result }) => {
              {icon} <Typography sx={{ml: 1, fontWeight: 'bold'}}>{title}</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            {/* This assumes data is an array of strings or objects with a 'point' property */}
             {Array.isArray(data) ? (
               <List dense>
                 {data.map((item, index) => <ListItem key={index}><ListItemText primary={item.point || item} /></ListItem>)}
@@ -148,7 +143,6 @@ const ReportDisplay = ({ result }) => {
               {result.keyword_gap_analysis && renderSection("Keyword Gap Analysis", result.keyword_gap_analysis, <TravelExploreIcon color="primary"/>)}
               {result.on_page_seo_audit && renderSection("On-Page SEO Audit", result.on_page_seo_audit, <PageviewIcon color="primary"/>)}
               {result.content_recommendations && renderSection("Content Recommendations", result.content_recommendations, <ContentPasteSearchIcon color="primary"/>)}
-              {/* Add other sections as they become available in the report */}
             </Grid>
         </Box>
     )
@@ -173,22 +167,19 @@ function SEOptimizerPage() {
 
   const ws = useRef(null);
   
-  // Memoize competitor URLs to avoid re-calculating on every render
   const competitorUrlList = useMemo(() => 
     competitorSites.split(',').map(s => s.trim()).filter(Boolean),
     [competitorSites]
   );
   
-  // CRITICAL: Add cleanup effect for WebSocket
   useEffect(() => {
-    // This function will be called when the component unmounts
     return () => {
       if (ws.current && ws.current.readyState === WebSocket.OPEN) {
         console.log("Closing WebSocket connection on component unmount.");
         ws.current.close();
       }
     };
-  }, []); // Empty dependency array means this runs once on mount and cleanup on unmount
+  }, []);
 
   const handleValidateSitemaps = async () => {
     const allUrls = [yourSite, ...competitorUrlList].filter(Boolean);
@@ -198,15 +189,22 @@ function SEOptimizerPage() {
     }
     setIsValidating(true);
     setError(null);
+
+    const formData = new FormData();
+    allUrls.forEach(url => formData.append('urls', url));
+
     try {
       const response = await fetch(`${API_BASE_URL}/validate-sitemaps`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: allUrls })
+        body: formData
       });
-      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+      }
+      
       const data = await response.json();
-      // Initialize manual_sitemap_url for fields that will need it
       const resultsWithManualField = data.results.map(r => ({...r, manual_sitemap_url: ''}));
       setSitemapStatus(resultsWithManualField);
     } catch (e) {
@@ -217,17 +215,28 @@ function SEOptimizerPage() {
   };
 
   const handleAutoGeneratePrompts = async () => {
-    if (!yourSite) { setError("Please enter your website URL first."); return; }
+    if (!yourSite) { 
+      setError("Please enter your website URL first."); 
+      return; 
+    }
     setIsGeneratingPrompts(true);
     setError(null);
-    setPrompts(null); // Clear old prompts
+    setPrompts(null);
+
+    const formData = new FormData();
+    formData.append('url', yourSite);
+
     try {
       const response = await fetch(`${API_BASE_URL}/generate-prompts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: yourSite })
+        body: formData
       });
-      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+      }
+      
       const data = await response.json();
       if (data.error) throw new Error(data.error);
       setPrompts(data.prompts);
@@ -244,12 +253,12 @@ function SEOptimizerPage() {
     setAnalysisResult(null);
     setError(null);
 
+    // Use secure WebSocket protocol wss://
     ws.current = new WebSocket(`wss://${API_BASE_URL.replace(/^https?:\/\//, '')}/ws/seo-analysis`);
 
     ws.current.onopen = () => {
       console.log("WebSocket connected");
       
-      // Construct payload with manually provided sitemaps if available
       const getSitemapForUrl = (url) => {
         const status = sitemapStatus.find(s => s.url === url);
         if (!status) return null;
@@ -289,7 +298,7 @@ function SEOptimizerPage() {
 
     ws.current.onclose = (event) => {
       console.log("WebSocket disconnected", event.reason);
-      setIsAnalyzing(false); // Ensure loading state is always turned off
+      setIsAnalyzing(false);
     };
   };
 
@@ -316,7 +325,7 @@ function SEOptimizerPage() {
               prompts={prompts}
               onGenerate={handleAutoGeneratePrompts}
               isGenerating={isGeneratingPrompts}
-              error={!prompts && error} // Pass down error if prompt generation failed
+              error={!prompts && error}
             />
           </Grid>
 
