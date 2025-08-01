@@ -31,34 +31,31 @@ jobs:
           workload_identity_provider: 'projects/362912017141/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'github-actions-sa@braidai.iam.gserviceaccount.com'
 
-      - name: Set up Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v2'
-
-      - name: Configure Docker
-        run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build and push the backend service
-      - name: Build and Push Backend Image
-        run: |
-          docker build -t ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }} ./agent-python-backend
-          docker push ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }}
+      - name: Configure Docker for Google Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
 
-      # ✅ FINAL FIX HERE
+      # Build and push the backend service using a robust action
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./agent-python-backend
+          push: true
+          tags: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }}
+
+      # Build and push the frontend service using a robust action
       - name: Build and Push Frontend Image
-        run: |
-          echo "
-          docker buildx build \
-          --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }} \
-          --tag ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} \
-          --output type=docker \
-          ./agent-frontend
-           " | bash
-          docker push ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./agent-frontend
+          push: true
+          build-args: VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+          tags: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
+
       - name: Deploy Backend to Cloud Run
-        run: |
+        run: |-
           gcloud run deploy ${{ env.BACKEND_SERVICE }} \
             --image ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }} \
             --region ${{ env.GAR_LOCATION }} \
@@ -67,7 +64,7 @@ jobs:
             --port 8000
 
       - name: Deploy Frontend to Cloud Run
-        run: |
+        run: |-
           gcloud run deploy ${{ env.FRONTEND_SERVICE }} \
             --image ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} \
             --region ${{ env.GAR_LOCATION }} \
