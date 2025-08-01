@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, CardContent, Typography, TextField, CircularProgress, Box, Paper, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Button, Card, CardContent, Typography, CircularProgress, Box, Paper, Select, MenuItem, FormControl, InputLabel, TextField } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // DEFINE THE API BASE URL AT THE TOP
@@ -65,7 +65,8 @@ function ForecastPage() {
             }
             const data = await response.json();
             setAnalysisResult(data);
-            setConversationHistory([{ type: 'agent', content: data.text }]);
+            const agentMessage = { type: 'agent', content: data.text, plot_path: data.plot_path };
+            setConversationHistory([agentMessage]);
         } catch (err) {
             console.error(err);
             setError(err.message);
@@ -80,11 +81,14 @@ function ForecastPage() {
 
         setIsLoading(true);
         const userMessage = { type: 'user', content: followUpQuestion };
-        setConversationHistory(prev => [...prev, userMessage]);
+        const currentConversation = [...conversationHistory, userMessage];
+        setConversationHistory(currentConversation);
 
         const formData = new FormData();
         formData.append('question', followUpQuestion);
-        formData.append('conversation', JSON.stringify(conversationHistory));
+        // Pass the conversation history *without* any plot paths from previous turns
+        const historyForBackend = conversationHistory.map(({type, content}) => ({type, content}));
+        formData.append('conversation', JSON.stringify(historyForBackend));
 
         try {
             const response = await fetch(`${API_BASE_URL}/follow-up`, {
@@ -95,8 +99,8 @@ function ForecastPage() {
                 throw new Error(`Follow-up request failed: ${response.statusText}`);
             }
             const data = await response.json();
-            setAnalysisResult(data);
-            setConversationHistory(prev => [...prev, { type: 'agent', content: data.text }]);
+            const agentMessage = { type: 'agent', content: data.text, plot_path: data.plot_path };
+            setConversationHistory(prev => [...prev, agentMessage]);
         } catch (err) {
             console.error(err);
             setError(err.message);
@@ -105,11 +109,34 @@ function ForecastPage() {
             setFollowUpQuestion("");
         }
     };
-
+    
     const handleDatasetChange = (event) => {
         const file = availableDatasets.find(d => d.filename === event.target.value);
         setSelectedDataset(file);
     };
+
+    const renderPlot = (plotPath) => {
+        // Construct the full URL for the plot image
+        const plotUrl = `${API_BASE_URL}/${plotPath}`;
+        // Find the latest plot in the history to display
+        if(plotPath.endsWith('.html')) {
+             return (
+                <iframe
+                    src={plotUrl}
+                    style={{ width: '100%', height: '500px', border: 'none' }}
+                    title="Analysis Plot"
+                />
+            );
+        } else {
+            return (
+                 <img src={plotUrl} alt="Analysis Plot" style={{ maxWidth: '100%', height: 'auto', marginTop: '20px' }} />
+            )
+        }
+    };
+    
+    // Find the latest plot path from the conversation history
+    const latestPlotPath = [...conversationHistory].reverse().find(msg => msg.type === 'agent' && msg.plot_path)?.plot_path;
+
 
     return (
         <Box sx={{ p: 3 }}>
@@ -146,7 +173,7 @@ function ForecastPage() {
             {isLoading && <CircularProgress sx={{ display: 'block', margin: 'auto' }} />}
             {error && <Typography color="error">{error}</Typography>}
 
-            {dataPreview && !analysisResult && (
+            {dataPreview && !conversationHistory.length && (
                 <Card sx={{ mb: 3 }}>
                     <CardContent>
                         <Typography variant="h6">Data Preview</Typography>
@@ -155,22 +182,25 @@ function ForecastPage() {
                 </Card>
             )}
 
-            {analysisResult && (
+            {conversationHistory.length > 0 && (
                 <Card>
                     <CardContent>
-                        <Typography variant="h6">Analysis Result</Typography>
-                        <Box sx={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #ccc', p: 1, mb: 2, borderRadius: '4px' }}>
+                        <Typography variant="h6">Analysis Conversation</Typography>
+                        <Box sx={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ccc', p: 2, mb: 2, borderRadius: '4px' }}>
                             {conversationHistory.map((msg, index) => (
-                                <p key={index} style={{ color: msg.type === 'user' ? 'blue' : 'black' }}>
-                                    <strong>{msg.type === 'user' ? 'You' : 'Agent'}:</strong> {msg.content}
-                                </p>
+                                <Box key={index} sx={{ mb: 1, color: msg.type === 'user' ? 'primary.main' : 'text.primary' }}>
+                                    <Typography variant="subtitle2"><strong>{msg.type === 'user' ? 'You' : 'Agent'}:</strong></Typography>
+                                    <Typography variant="body1" style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</Typography>
+                                </Box>
                             ))}
                         </Box>
-                        {analysisResult.plot_path && (
-                            <Box my={2}>
-                                <img src={`${API_BASE_URL}/${analysisResult.plot_path}`} alt="Analysis Plot" style={{ maxWidth: '100%' }} />
+
+                        {latestPlotPath && (
+                             <Box my={2}>
+                                {renderPlot(latestPlotPath)}
                             </Box>
                         )}
+                        
                         <form onSubmit={handleFollowUpSubmit}>
                             <TextField
                                 fullWidth
