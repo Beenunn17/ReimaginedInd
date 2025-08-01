@@ -9,6 +9,11 @@ from fastapi import FastAPI, Form, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
+
+
+
+
+
 # Import agent functions
 from agents.data_science_agent import run_standard_agent, run_follow_up_agent
 from agents.seo_agent import find_sitemap, generate_prompts_for_url, run_full_seo_analysis
@@ -22,12 +27,20 @@ DATA_DIR = "../agent-frontend/public/data/"
 
 app = FastAPI()
 
+# 👇 2. ADD THIS ENTIRE BLOCK
+# This allows your frontend to communicate with your backend
+origins = [
+    # The URL of your deployed frontend
+    "https://braidai-frontend-362912017141.us-central1.run.app",
+    # The URL for local development
+    "http://localhost:5173",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    # You will need to add your deployed frontend URL here later
-    allow_origins=["http://localhost:5173", "https://braidai-frontend-*.run.app"], 
-    allow_credentials=True, 
-    allow_methods=["*"], 
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
