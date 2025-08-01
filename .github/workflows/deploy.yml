@@ -49,9 +49,14 @@ jobs:
       # ✅ FINAL FIX HERE
       - name: Build and Push Frontend Image
         run: |
-          docker buildx build --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }} --tag ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} --output type=docker ./agent-frontend
+          echo "
+          docker buildx build \
+          --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }} \
+          --tag ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} \
+          --output type=docker \
+          ./agent-frontend
+           " | bash
           docker push ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
-
       - name: Deploy Backend to Cloud Run
         run: |
           gcloud run deploy ${{ env.BACKEND_SERVICE }} \
