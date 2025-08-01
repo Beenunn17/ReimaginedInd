@@ -8,18 +8,19 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install the Python dependencies AND the Playwright browser dependencies
-# This is the critical line that was missing.
 RUN pip install --no-cache-dir -r requirements.txt && \
     playwright install --with-deps chromium
 
 # Copy the rest of the application's code into the container
 COPY . .
 
-# ADD THIS LINE to create the data files inside the container
+# Create the data files inside the container
 RUN python create_dummy_data.py
 
-# Make port 8000 available to the world outside this container
+# Expose the port the container will listen on. 
+# This is documentation for the user, Cloud Run uses the PORT env var.
 EXPOSE 8000
 
-# Run the uvicorn server, using the $PORT variable provided by Cloud Run
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Set the command to run the application.
+# This uses the PORT environment variable provided by Cloud Run.
+CMD exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
