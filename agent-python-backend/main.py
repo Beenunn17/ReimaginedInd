@@ -1,36 +1,15 @@
-print("🔥 Starting main.py")
-
-import pandas as pd
-import json
 import os
-import asyncio
-import httpx
-from fastapi import FastAPI, Form, HTTPException, WebSocket
+from fastapi import FastAPI, WebSocket, Form, HTTPException, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
+from agents.seo_agent import generate_prompts_for_url, run_full_seo_analysis
+import httpx
 
-
-
-
-
-
-# Import agent functions
-from agents.data_science_agent import run_standard_agent, run_follow_up_agent
-from agents.seo_agent import find_sitemap, generate_prompts_for_url, run_full_seo_analysis
-from agents.creative_agent import generate_ad_creative
-
-# --- Configuration & Initialization ---
-PROJECT_ID = "braidai"
-LOCATION = "us-central1"
-MODEL_NAME = "gemini-2.5-pro"
-DATA_DIR = "./data/"
-
+# --- App Configuration ---
 app = FastAPI()
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+LOCATION = "us-central1"
 
-# 👇 2. ADD THIS ENTIRE BLOCK
-# This allows your frontend to communicate with your backend
 origins = ["*"]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -39,115 +18,88 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- SEO Agent Endpoints ---
+# --- Helper Functions ---
+async def find_sitemap(url: str, client: httpx.AsyncClient) -> dict:
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    
+    parsed_url = httpx.URL(url)
+    base_url = f"{parsed_url.scheme}://{parsed_url.host}"
+    robots_url = f"{base_url}/robots.txt"
+    
+    try:
+        response = await client.get(robots_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        if response.status_code == 200:
+            for line in response.text.splitlines():
+                if line.lower().startswith('sitemap:'):
+                    sitemap_url = line.split(':', 1)[1].strip()
+                    return {"url": url, "status": "found", "sitemap_url": sitemap_url}
+    except httpx.RequestError as e:
+        print(f"Error fetching robots.txt for {url}: {e}")
+
+    # If robots.txt fails or sitemap not in it, check common locations
+    common_paths = ['/sitemap.xml', '/sitemap_index.xml']
+    for path in common_paths:
+        try:
+            sitemap_url = f"{base_url}{path}"
+            response = await client.head(sitemap_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+            if response.status_code == 200:
+                return {"url": url, "status": "found", "sitemap_url": sitemap_url}
+        except httpx.RequestError:
+            continue
+            
+    return {"url": url, "status": "not_found", "sitemap_url": None}
+
+# --- API Endpoints ---
+@app.get("/")
+def read_root():
+    return {"message": "Braid AGENT v1.0"}
+
 @app.post("/validate-sitemaps")
-async def validate_sitemaps_endpoint(urls: list = Form(...)):
-    results = []
+async def validate_sitemaps_endpoint(urls: list[str] = Form(...)):
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        tasks = [find_sitemap(url, client) for url in urls]
-        sitemap_locations = await asyncio.gather(*tasks)
-        for url, sitemap_loc in zip(urls, sitemap_locations):
-            if sitemap_loc:
-                results.append({"url": url, "status": "found", "sitemap_url": sitemap_loc})
-            else:
-                results.append({"url": url, "status": "not_found", "sitemap_url": None})
+        results = [await find_sitemap(url, client) for url in urls]
     return {"results": results}
 
 @app.post("/generate-prompts")
-async def get_generated_prompts(url: str = Form(...), competitors: str = Form("")):
-    categorized_prompts = generate_prompts_for_url(url, competitors, PROJECT_ID, LOCATION)
-    if 'error' in categorized_prompts:
-        raise HTTPException(status_code=500, detail=categorized_prompts['error'])
-    return {"prompts": categorized_prompts}
+async def generate_prompts_endpoint(url: str = Form(...), competitors: str = Form(None)):
+    if not PROJECT_ID:
+        raise HTTPException(status_code=500, detail="Server configuration error: GCP Project ID not set.")
+    try:
+        # Pass competitors as a string, let the agent handle it.
+        prompts = generate_prompts_for_url(url, competitors, PROJECT_ID, LOCATION)
+        if "error" in prompts:
+            raise HTTPException(status_code=500, detail=prompts["error"])
+        return {"prompts": prompts}
+    except Exception as e:
+        # Catch any other unexpected errors
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
 
 @app.websocket("/ws/seo-analysis")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         data = await websocket.receive_json()
-        your_site, competitors, prompts = data.get("yourSite"), data.get("competitors", []), data.get("prompts")
-        if not your_site or not prompts:
-            await websocket.send_json({"status": "error", "message": "Missing site URL or prompts."})
+        your_site = data.get("yourSite")
+        competitors = data.get("competitors", [])
+        prompts = data.get("prompts")
+
+        if not all([your_site, prompts, PROJECT_ID]):
+            await websocket.send_json({"status": "error", "message": "Missing required data: site, prompts, or server config."})
             return
+
         final_report = await run_full_seo_analysis(websocket, PROJECT_ID, LOCATION, your_site, competitors, prompts)
-        await websocket.send_json({"status": "complete", "report": final_report})
+        await websocket.send_json({"report": final_report})
+
+    except WebSocketDisconnect:
+        print("Client disconnected.")
     except Exception as e:
-        error_message = f"An unexpected error occurred: {str(e)}"
+        error_message = f"An unexpected error occurred during analysis: {str(e)}"
         print(error_message)
-        await websocket.send_json({"status": "error", "message": error_message})
+        try:
+            await websocket.send_json({"status": "error", "message": error_message})
+        except RuntimeError:
+            print("Could not send error to already closed socket.")
     finally:
         await websocket.close()
-
-# --- Creative Agent Endpoint ---
-
-@app.post("/generate-creative")
-async def generate_creative_endpoint(
-    platform: str = Form(...),
-    customSubject: str = Form(...),
-    sceneDescription: str = Form(...),
-    imageType: str = Form(...),
-    style: str = Form(...),
-    camera: str = Form(...),
-    lighting: str = Form(...),
-    composition: str = Form(...),
-    modifiers: str = Form(...),
-    negativePrompt: str = Form(...),
-    subjectImage: Optional[str] = Form(None),
-    sceneImage: Optional[str] = Form(None)
-):
-    prompt_components = {
-        "customSubject": customSubject,
-        "sceneDescription": sceneDescription,
-        "imageType": imageType,
-        "style": style,
-        "camera": camera,
-        "lighting": lighting,
-        "composition": composition,
-        "modifiers": modifiers,
-        "negativePrompt": negativePrompt
-    }
-    asset_data = generate_ad_creative(
-        project_id=PROJECT_ID,
-        location=LOCATION,
-        platform=platform,
-        prompt_components=prompt_components,
-        subject_image_b64=subjectImage,
-        scene_image_b64=sceneImage
-    )
-    if asset_data:
-        return asset_data 
-    raise HTTPException(status_code=500, detail="Failed to generate creative.")
-
-# --- Data Science Agent Endpoints ---
-@app.get("/preview/{dataset_filename}")
-async def get_data_preview(dataset_filename: str):
-    filepath = os.path.join(DATA_DIR, dataset_filename)
-    df = pd.read_csv(filepath)
-    df = df.round(2)
-    return json.loads(df.head().to_json(orient='split'))
-
-@app.post("/analyze")
-async def analyze_data(dataset_filename: str = Form(...), prompt: str = Form(...)):
-    filepath = os.path.join(DATA_DIR, dataset_filename)
-    dataframe = pd.read_csv(filepath)
-    result = run_standard_agent(dataframe, prompt, PROJECT_ID, LOCATION, MODEL_NAME)
-    return result
-
-@app.post("/follow-up")
-async def follow_up_analysis(
-    dataset_filename: str = Form(...),
-    original_prompt: str = Form(...),
-    follow_up_history: str = Form(...),
-    follow_up_prompt: str = Form(...)
-):
-    filepath = os.path.join(DATA_DIR, dataset_filename)
-    dataframe = pd.read_csv(filepath)
-    history_list = json.loads(follow_up_history)
-    history_str = ""
-    for turn in history_list:
-        if turn.get('sender') == 'user':
-            history_str += f"User: {turn.get('text')}\n"
-        elif turn.get('sender') == 'agent':
-            history_str += f"Agent: {turn.get('summary')}\n"
-    result = run_follow_up_agent(dataframe, original_prompt, history_str, follow_up_prompt, PROJECT_ID, LOCATION, MODEL_NAME)
-    return result

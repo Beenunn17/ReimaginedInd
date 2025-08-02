@@ -11,12 +11,9 @@ import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ScienceIcon from '@mui/icons-material/Science';
 
-// Use Vite's syntax for environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
-// --- Sub-Component for Scope Input & Sitemap Validation ---
 const ScopeSection = ({ yourSite, setYourSite, competitorSites, setCompetitorSites, onValidate, isValidating, sitemapStatus, setSitemapStatus }) => {
-
   const handleManualSitemapChange = (index, value) => {
     const newStatus = [...sitemapStatus];
     newStatus[index].manual_sitemap_url = value;
@@ -40,7 +37,7 @@ const ScopeSection = ({ yourSite, setYourSite, competitorSites, setCompetitorSit
         margin="normal"
         value={competitorSites}
         onChange={e => setCompetitorSites(e.target.value)}
-        placeholder="https://www.competitor-a.com, https://www.competitor-b.com"
+        placeholder="https://www.competitor-a.com"
       />
       <Button
         variant="contained"
@@ -51,7 +48,7 @@ const ScopeSection = ({ yourSite, setYourSite, competitorSites, setCompetitorSit
         Validate Sitemaps
       </Button>
       {sitemapStatus.length > 0 && (
-        <Box sx={{ mt: 2 }}>
+        <Box sx={{ mt: 2, maxHeight: '200px', overflowY: 'auto' }}>
           {sitemapStatus.map((status, index) => (
             <Paper key={index} variant="outlined" sx={{ p: 2, mt: 1, borderColor: status.status === 'found' ? 'success.main' : 'warning.main' }}>
               <Typography variant="subtitle2" sx={{ wordBreak: 'break-all' }}>{status.url}</Typography>
@@ -76,7 +73,6 @@ const ScopeSection = ({ yourSite, setYourSite, competitorSites, setCompetitorSit
   );
 };
 
-// --- Sub-Component for Prompt Generation ---
 const PromptSection = ({ prompts, onGenerate, isGenerating, error }) => (
   <>
     <Typography variant="h6" component="h2" sx={{ mt: 3 }} gutterBottom>2. Authority Analysis Prompts</Typography>
@@ -99,7 +95,7 @@ const PromptSection = ({ prompts, onGenerate, isGenerating, error }) => (
             </AccordionSummary>
             <AccordionDetails>
               <List dense>
-                {promptList.map((prompt, index) => (
+                {Array.isArray(promptList) && promptList.map((prompt, index) => (
                   <ListItem key={index}><ListItemText primary={`- ${prompt}`} /></ListItem>
                 ))}
               </List>
@@ -112,65 +108,43 @@ const PromptSection = ({ prompts, onGenerate, isGenerating, error }) => (
   </>
 );
 
-// --- Main Page Component ---
 function SEOptimizerPage() {
-  const navigate = useNavigate(); // Hook for navigation
-  
-  // State
+  const navigate = useNavigate();
   const [yourSite, setYourSite] = useState('');
   const [competitorSites, setCompetitorSites] = useState('');
   const [prompts, setPrompts] = useState(null);
   const [sitemapStatus, setSitemapStatus] = useState([]);
   const [logs, setLogs] = useState([]);
-  
-  // Loading and Error States
   const [isGeneratingPrompts, setIsGeneratingPrompts] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState(null);
-
   const ws = useRef(null);
-  
+
   const competitorUrlList = useMemo(() => 
     competitorSites.split(',').map(s => s.trim()).filter(Boolean),
     [competitorSites]
   );
-  
+
   useEffect(() => {
     return () => {
       if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        console.log("Closing WebSocket connection on component unmount.");
         ws.current.close();
       }
     };
   }, []);
 
   const handleValidateSitemaps = async () => {
-    const allUrls = [yourSite, ...competitorUrlList].filter(Boolean);
-    if (allUrls.length === 0) {
-      setError("Please enter at least one website URL.");
-      return;
-    }
+    const allUrls = [yourSite, ...competitorUrlList];
     setIsValidating(true);
     setError(null);
-
     const formData = new FormData();
     allUrls.forEach(url => formData.append('urls', url));
-
     try {
-      const response = await fetch(`${API_BASE_URL}/validate-sitemaps`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
-      }
-      
+      const response = await fetch(`${API_BASE_URL}/validate-sitemaps`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
       const data = await response.json();
-      const resultsWithManualField = data.results.map(r => ({...r, manual_sitemap_url: ''}));
-      setSitemapStatus(resultsWithManualField);
+      setSitemapStatus(data.results.map(r => ({...r, manual_sitemap_url: ''})));
     } catch (e) {
       setError(`Failed to validate sitemaps: ${e.message}`);
     } finally {
@@ -179,30 +153,22 @@ function SEOptimizerPage() {
   };
 
   const handleAutoGeneratePrompts = async () => {
-    if (!yourSite) { 
-      setError("Please enter your website URL first."); 
-      return; 
+    if (!yourSite) {
+      setError("Please enter your website URL first.");
+      return;
     }
     setIsGeneratingPrompts(true);
     setError(null);
     setPrompts(null);
-
     const formData = new FormData();
     formData.append('url', yourSite);
-
+    formData.append('competitors', competitorSites);
     try {
-      const response = await fetch(`${API_BASE_URL}/generate-prompts`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
-      }
-      
+      const response = await fetch(`${API_BASE_URL}/generate-prompts`, { method: 'POST', body: formData });
       const data = await response.json();
-      if (data.error) throw new Error(data.error);
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to generate prompts.');
+      }
       setPrompts(data.prompts);
     } catch (e) {
       setError(`Failed to generate prompts: ${e.message}`);
@@ -215,97 +181,65 @@ function SEOptimizerPage() {
     setIsAnalyzing(true);
     setLogs([]);
     setError(null);
-
-    // Use secure WebSocket protocol wss://
     ws.current = new WebSocket(`wss://${API_BASE_URL.replace(/^https?:\/\//, '')}/ws/seo-analysis`);
 
     ws.current.onopen = () => {
-      console.log("WebSocket connected");
-      
       const getSitemapForUrl = (url) => {
         const status = sitemapStatus.find(s => s.url === url);
-        if (!status) return null;
-        return status.manual_sitemap_url || status.sitemap_url || null;
-      }
-      
+        return status?.manual_sitemap_url || status?.sitemap_url || null;
+      };
       const payload = {
         yourSite: { url: yourSite, sitemap: getSitemapForUrl(yourSite) },
         competitors: competitorUrlList.map(url => ({ url, sitemap: getSitemapForUrl(url) })),
         prompts: prompts
       };
-      
       ws.current.send(JSON.stringify(payload));
     };
 
     ws.current.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.log) {
-            setLogs(prevLogs => [...prevLogs, { status: 'running', message: data.log, timestamp: new Date() }]);
-        } else if (data.report) {
-            // Navigate to the report page with the report data
-            navigate('/seo-report', { state: { report: data.report } });
-            setLogs(prevLogs => [...prevLogs, { status: 'success', message: "Analysis complete! Redirecting to report...", timestamp: new Date() }]);
-            setIsAnalyzing(false);
-            ws.current.close();
-        } else if (data.status === 'error') {
-            const errorMessage = data.message || 'An unknown error occurred.';
-            setError(`An analysis error occurred: ${errorMessage}`);
-            setLogs(prevLogs => [...prevLogs, { status: 'error', message: errorMessage, timestamp: new Date() }]);
-            setIsAnalyzing(false);
-        }
+      const data = JSON.parse(event.data);
+      if (data.log) {
+        setLogs(prev => [...prev, { status: 'running', message: data.log, timestamp: new Date() }]);
+      } else if (data.report) {
+        navigate('/seo-report', { state: { report: data.report } });
+        setIsAnalyzing(false);
+        ws.current.close();
+      } else if (data.status === 'error') {
+        const errorMessage = data.message || 'An unknown error occurred.';
+        setError(`Analysis Error: ${errorMessage}`);
+        setLogs(prev => [...prev, { status: 'error', message: errorMessage, timestamp: new Date() }]);
+        setIsAnalyzing(false);
+      }
     };
-
-    ws.current.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      setError('A WebSocket connection error occurred. Check the console and ensure the backend is running.');
+    ws.current.onerror = () => {
+      setError('WebSocket connection failed. Check backend logs.');
       setIsAnalyzing(false);
     };
-
-    ws.current.onclose = (event) => {
-      console.log("WebSocket disconnected", event.reason);
+    ws.current.onclose = () => {
       setIsAnalyzing(false);
     };
   };
 
   return (
-    <Box sx={{ padding: { xs: 2, sm: 4 }, color: 'white', maxWidth: '1200px', margin: 'auto' }}>
+    <Box sx={{ p: 4, color: 'white', maxWidth: '1200px', mx: 'auto' }}>
       <Typography variant="h4" component="h1" gutterBottom>LLM Optimization Agent</Typography>
-      
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
-
-      <Paper sx={{ p: { xs: 2, sm: 3 }, backgroundColor: '#1E1E1E', color: 'white' }}>
+      <Paper sx={{ p: 3, backgroundColor: '#1E1E1E', color: 'white' }}>
         <Grid container spacing={4}>
           <Grid item xs={12} md={6}>
-            <ScopeSection
-              yourSite={yourSite}
-              setYourSite={setYourSite}
-              competitorSites={competitorSites}
-              setCompetitorSites={setCompetitorSites}
-              onValidate={handleValidateSitemaps}
-              isValidating={isValidating}
-              sitemapStatus={sitemapStatus}
-              setSitemapStatus={setSitemapStatus}
-            />
-            <PromptSection
-              prompts={prompts}
-              onGenerate={handleAutoGeneratePrompts}
-              isGenerating={isGeneratingPrompts}
-              error={!prompts && error}
-            />
+            <ScopeSection {...{ yourSite, setYourSite, competitorSites, setCompetitorSites, onValidate: handleValidateSitemaps, isValidating, sitemapStatus, setSitemapStatus }} />
+            <PromptSection {...{ prompts, onGenerate: handleAutoGeneratePrompts, isGenerating: isGeneratingPrompts, error: prompts?.error }} />
           </Grid>
-
           <Grid item xs={12} md={6}>
             <Typography variant="h6" component="h2" gutterBottom>3. Agent Status</Typography>
-            <Paper variant="outlined" sx={{ p: 2, height: '400px', backgroundColor: '#0d1117', overflowY: 'auto' }}>
+            <Paper variant="outlined" sx={{ p: 2, height: '450px', backgroundColor: '#0d1117', overflowY: 'auto' }}>
               <List dense>
-                {logs.length === 0 && !isAnalyzing && <ListItemText primary="Logs will appear here once the analysis begins." sx={{color: 'grey.500'}}/>}
-                {isAnalyzing && logs.length === 0 && <Box sx={{display:'flex', justifyContent:'center'}}><CircularProgress/></Box>}
+                {logs.length === 0 && !isAnalyzing && <ListItemText primary="Logs will appear here..." sx={{ color: 'grey.500' }} />}
+                {isAnalyzing && logs.length === 0 && <Box sx={{ display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box>}
                 {logs.map((log, index) => (
                   <ListItem key={log.timestamp.getTime() + index}>
                     <ListItemIcon sx={{ minWidth: '32px' }}>
-                      {log.status === 'success' ? <CheckCircleIcon color="success" fontSize="small" /> 
-                       : log.status === 'error' ? <WarningIcon color="error" fontSize="small" /> 
-                       : <CircularProgress color="inherit" size={16} />}
+                      {log.status === 'success' ? <CheckCircleIcon color="success" fontSize="small" /> : log.status === 'error' ? <WarningIcon color="error" fontSize="small" /> : <CircularProgress color="inherit" size={16} />}
                     </ListItemIcon>
                     <ListItemText primary={log.message} />
                   </ListItem>
