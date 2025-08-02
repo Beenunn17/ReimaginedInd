@@ -6,7 +6,10 @@ import httpx
 
 # --- App Configuration ---
 app = FastAPI()
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+
+# *** THIS IS THE FIX ***
+# Hardcode the Project ID directly, as it was originally.
+PROJECT_ID = "braidai" 
 LOCATION = "us-central1"
 
 origins = ["*"]
@@ -37,7 +40,6 @@ async def find_sitemap(url: str, client: httpx.AsyncClient) -> dict:
     except httpx.RequestError as e:
         print(f"Error fetching robots.txt for {url}: {e}")
 
-    # If robots.txt fails or sitemap not in it, check common locations
     common_paths = ['/sitemap.xml', '/sitemap_index.xml']
     for path in common_paths:
         try:
@@ -63,16 +65,12 @@ async def validate_sitemaps_endpoint(urls: list[str] = Form(...)):
 
 @app.post("/generate-prompts")
 async def generate_prompts_endpoint(url: str = Form(...), competitors: str = Form(None)):
-    if not PROJECT_ID:
-        raise HTTPException(status_code=500, detail="Server configuration error: GCP Project ID not set.")
     try:
-        # Pass competitors as a string, let the agent handle it.
         prompts = generate_prompts_for_url(url, competitors, PROJECT_ID, LOCATION)
         if "error" in prompts:
             raise HTTPException(status_code=500, detail=prompts["error"])
         return {"prompts": prompts}
     except Exception as e:
-        # Catch any other unexpected errors
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
