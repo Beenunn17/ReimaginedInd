@@ -47,7 +47,6 @@ async def find_sitemap(url: str, client: httpx.AsyncClient) -> str | None:
     except Exception:
         return None
 
-# UPDATED to use Playwright
 async def scrape_urls_for_schema(urls: list[str], browser) -> dict:
     schemas = {}
     page = await browser.new_page()
@@ -66,8 +65,8 @@ async def scrape_urls_for_schema(urls: list[str], browser) -> dict:
 
 async def analyze_schema(schemas: dict, model: GenerativeModel) -> dict:
     if not schemas or all('error' in v for v in schemas.values()):
-        return {"score": 0, "summary": "The analysis indicates a complete failure to retrieve any structured data. The scraping tool was likely blocked, signifying that no valid schema could be parsed from the target URL. This represents a critical missed opportunity."}
-    prompt = f"You are a technical SEO expert. Based on the following JSON-LD schema, provide a technical analysis as a JSON object with 'score' (integer 0-100) and 'summary' (2-3 sentences). Schema: --- {json.dumps(schemas, indent=2)} ---. The output must be ONLY the JSON object."
+        return {"score": 0, "summary": "The analysis indicates a complete failure to retrieve any structured data..."}
+    prompt = f"You are a technical SEO expert... Schema: --- {json.dumps(schemas, indent=2)} ---. The output must be ONLY the JSON object."
     try:
         response = await model.generate_content_async(prompt)
         json_match = re.search(r"\{.*\}", response.text, re.DOTALL)
@@ -83,7 +82,7 @@ async def run_authority_prompts_on_llm(client, model_name: str, categorized_prom
         for i, p in enumerate(prompts):
             prompt_key = f"{category}_{i}"
             prompt_list.append({"key": prompt_key, "prompt": p})
-    system_prompt = f"You are a neutral evaluator for '{brand_name}'. For each query, give a direct response. Return a single JSON object where keys are the query 'key' and values are your responses. Queries: {json.dumps(prompt_list, indent=2)}. Your entire output must be ONLY the valid JSON object."
+    system_prompt = f"You are a neutral evaluator for '{brand_name}'... Your entire output must be ONLY the valid JSON object."
     try:
         raw_response_text = ""
         if is_openai:
@@ -105,26 +104,11 @@ async def run_authority_prompts_on_llm(client, model_name: str, categorized_prom
     except Exception as e:
         return {"error": f"An error occurred during batched LLM call: {str(e)}"}
 
-# UPDATED with a more specific prompt
 async def analyze_authority_results(gemini_results: dict, openai_results: dict, model: GenerativeModel, brand_name: str) -> dict:
     prompt = f"""
-    You are a world-class brand strategist for the specialty coffee roaster '{brand_name}'. Analyze the following prompts and responses from two LLMs to assess brand authority.
-
+    You are a world-class brand strategist for '{brand_name}'...
     Gemini Responses: --- {json.dumps(gemini_results, indent=2)} ---
     OpenAI Responses: --- {json.dumps(openai_results, indent=2)} ---
-
-    Based on your analysis, generate a JSON object with this structure: 
-    {{
-      "score": <An integer from 0-100 representing the brand's authority and consistency>,
-      "insights": [
-        "A key insight about brand strength. Mention specific products or attributes if they appear in the responses.",
-        "A critical observation about a weakness or where the brand is being positioned against competitors."
-      ],
-      "recommendations": [
-        "A specific, actionable content recommendation for '{brand_name}' to capture user intent. Instead of 'create content', suggest 'Write a blog post titled `The Ultimate Guide to Cold Brew Ratios` featuring brand products'.",
-        "A specific, actionable marketing recommendation. Instead of 'use social media', suggest 'Launch an Instagram campaign featuring user-generated photos of their morning coffee ritual'."
-      ]
-    }}
     The output must be ONLY the valid JSON object.
     """
     try:
@@ -136,12 +120,11 @@ async def analyze_authority_results(gemini_results: dict, openai_results: dict, 
     except Exception as e:
         return {"score": 0, "insights": [], "recommendations": [f"An error occurred: {str(e)}"]}
 
-# --- Main Agent Functions ---
 def generate_prompts_for_url(url: str, competitors_str: str, project_id: str, location: str) -> dict:
-    # ... (function is unchanged from last working version)
     vertexai.init(project=project_id, location=location)
     generative_model = GenerativeModel("gemini-2.5-flash")
     try:
+        # ... (rest of the function is correct)
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
         with httpx.Client(headers=HEADERS, timeout=10, follow_redirects=True) as client:
@@ -151,7 +134,7 @@ def generate_prompts_for_url(url: str, competitors_str: str, project_id: str, lo
         brand_name = httpx.URL(url).host.replace('www.', '').split('.')[0].capitalize()
         text_content = ' '.join(p.get_text() for p in soup.find_all('p'))
         page_extract = f"Content Sample: {text_content[:2000]}"
-        prompt = f"As a strategist for '{brand_name}', generate a JSON object of prompts to test non-branded visibility against competitors: {competitors_str}. Use this content: --- {page_extract} ---. Create keys for 'branded_queries', 'problem_solution_queries', 'category_queries', 'comparison_queries', and 'review_queries', each with a list of 4 diverse prompts. The output must be ONLY the valid JSON object with no trailing commas."
+        prompt = f"As a strategist for '{brand_name}', generate a JSON object... The output must be ONLY the valid JSON object with no trailing commas."
         generation_response = generative_model.generate_content(prompt)
         raw_text = generation_response.text
         json_str_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
@@ -162,14 +145,9 @@ def generate_prompts_for_url(url: str, competitors_str: str, project_id: str, lo
     except Exception as e:
         return {"error": f"An error occurred: {str(e)}"}
 
-# UPDATED to initialize and use Playwright
-# In agent-python-backend/agents/seo_agent.py
-
-# THIS IS THE NEW, CORRECTED CODE:
 async def run_full_seo_analysis(websocket, project_id: str, location: str, your_site: dict, competitors: list[dict], prompts: dict) -> dict:
     await websocket.send_json({"status": "progress", "message": "Initializing clients..."})
     
-    # Extract the URL from the dictionary
     your_site_url = your_site.get("url")
     if not your_site_url:
         raise ValueError("your_site URL is missing from the payload.")
@@ -181,16 +159,16 @@ async def run_full_seo_analysis(websocket, project_id: str, location: str, your_
         raise ValueError("OpenAI API key not found.")
     openai_client = AsyncOpenAI(api_key=openai_api_key)
     brand_name = httpx.URL(your_site_url).host.replace('www.', '').split('.')[0].capitalize()
-    # ... rest of the function is the same
 
-    # Initialize Playwright and a browser instance
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        # httpx is still useful for fast API-like calls (e.g., to robots.txt)
         async with httpx.AsyncClient(follow_redirects=True) as client:
             await websocket.send_json({"status": "progress", "message": "Analyzing website schema..."})
-            initial_sitemap_url = await find_sitemap(your_site, client)
-            urls_to_scrape = {your_site}
+            
+            # THIS IS THE FIX: Use your_site_url instead of your_site
+            initial_sitemap_url = await find_sitemap(your_site_url, client)
+            
+            urls_to_scrape = {your_site_url}
             if initial_sitemap_url:
                 try:
                     sitemap_res = await client.get(initial_sitemap_url, headers=HEADERS)
@@ -206,7 +184,6 @@ async def run_full_seo_analysis(websocket, project_id: str, location: str, your_
                 except Exception as e:
                     print(f"Could not parse sitemap: {e}")
             
-            # Pass the browser instance to the scraper function
             scraped_schemas = await scrape_urls_for_schema(list(urls_to_scrape), browser)
         
         await browser.close()
