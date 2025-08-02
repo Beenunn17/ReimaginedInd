@@ -1,115 +1,101 @@
-import React, { useState } from 'react';
-import {
-  Box, Typography, Paper, Grid, Chip, Accordion, AccordionSummary,
-  AccordionDetails, ToggleButton, ToggleButtonGroup, List, ListItem,
-  ListItemText, Divider, ListItemIcon
-} from '@mui/material';
+import React from 'react';
+import { useLocation, Link } from 'react-router-dom';
+import { Box, Typography, Paper, Grid, Accordion, AccordionSummary, AccordionDetails, List, ListItem, ListItemText, Button } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import InsightsIcon from '@mui/icons-material/Insights';
+import PageviewIcon from '@mui/icons-material/Pageview';
+import ContentPasteSearchIcon from '@mui/icons-material/ContentPasteSearch';
+import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 
-const QnaItem = ({ prompt, response }) => (
-  <ListItem sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-    <ListItemText
-      primary="PROMPT"
-      secondary={prompt}
-      primaryTypographyProps={{ fontWeight: 'bold', fontSize: '0.8rem', color: 'text.secondary' }}
-      secondaryTypographyProps={{ color: 'text.primary', fontStyle: 'italic', textTransform: 'none' }}
-    />
-    <ListItemText
-      primary="RESPONSE"
-      secondary={response}
-      primaryTypographyProps={{ fontWeight: 'bold', fontSize: '0.8rem', mt: 1, color: 'primary.main' }}
-      secondaryTypographyProps={{ color: 'text.primary', whiteSpace: 'pre-wrap', textTransform: 'none' }}
-    />
-  </ListItem>
-);
+// A resilient helper component to render sections of the report
+const ReportSection = ({ title, data, icon }) => {
+  // Don't render the section if data is missing or empty
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    return null;
+  }
 
-function SeoReportDashboard({ report, originalPrompts }) {
-  const [selectedLlm, setSelectedLlm] = useState('gemini');
-
-  const handleLlmChange = (event, newLlm) => {
-    if (newLlm !== null) {
-      setSelectedLlm(newLlm);
+  const renderListItems = (items) => {
+    if (!Array.isArray(items)) {
+        return <ListItem><ListItemText primary={items.toString()} /></ListItem>;
     }
+    return items.map((item, index) => (
+      <ListItem key={index}>
+        <ListItemText 
+          primary={typeof item === 'object' ? item.point || JSON.stringify(item) : item} 
+        />
+      </ListItem>
+    ));
   };
 
-  // FIX: Safely access LLM results with a fallback to an empty object
-  const llmResults = report?.authorityAnalysis?.[selectedLlm] ?? {};
+  return (
+    <Grid item xs={12} md={6}>
+      <Accordion defaultExpanded sx={{ backgroundColor: '#2a2a2a', color: 'white' }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: 'white' }} />}>
+          {icon}
+          <Typography sx={{ ml: 1, fontWeight: 'bold' }}>{title}</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <List dense>
+            {renderListItems(data)}
+          </List>
+        </AccordionDetails>
+      </Accordion>
+    </Grid>
+  );
+};
+
+
+function SeoReportDashboard() {
+  const location = useLocation();
+  // Use optional chaining (?.) to safely access nested state
+  const report = location.state?.report;
+
+  if (!report) {
+    return (
+      <Box sx={{ padding: 4, textAlign: 'center', color: 'white' }}>
+        <Typography variant="h5" gutterBottom>No Report Data Found</Typography>
+        <Typography>The analysis may have completed without generating a report, or you may have accessed this page directly.</Typography>
+        <Button component={Link} to="/seo-optimizer" variant="contained" sx={{ mt: 2 }}>
+          Run a New Analysis
+        </Button>
+      </Box>
+    );
+  }
+  
+  // Safely destructure the report using optional chaining
+  const { reportTitle, schemaAudit, authorityAudit, authorityAnalysis } = report;
 
   return (
-    <Box sx={{ mt: 4 }}>
-      <Typography variant="h5" component="h3" gutterBottom>
-        {report?.reportTitle ?? 'LLM Optimization Analysis'}
+    <Box sx={{ padding: { xs: 2, sm: 4 }, color: 'white', maxWidth: '1200px', margin: 'auto' }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        {reportTitle || 'SEO Analysis Report'}
       </Typography>
-      <Grid container spacing={4}>
-        {/* Schema Audit Card */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Schema Audit</Typography>
-            {/* FIX: Safely access score with a fallback */}
-            <Chip label={`SCORE: ${report?.schemaAudit?.score ?? 0} / 100`} color="primary" sx={{ my: 1, px: 1 }} />
-            <Typography variant="body2" sx={{ mt: 2, textTransform: 'none' }}>
-              {/* FIX: Safely access summary with a fallback */}
-              {report?.schemaAudit?.summary ?? 'No summary available.'}
-            </Typography>
-          </Paper>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, backgroundColor: '#1E1E1E', color: 'white' }}>
+        <Grid container spacing={3}>
+          {/* Main Audit Sections - Safely access nested properties */}
+          <ReportSection title="Schema Audit" data={schemaAudit?.summary ? [schemaAudit.summary] : null} icon={<PageviewIcon color="primary"/>} />
+          <ReportSection title="Authority Audit" data={authorityAudit?.insights} icon={<TravelExploreIcon color="primary"/>} />
+
+          {/* Detailed Gemini Analysis - Safely access nested properties */}
+          {Object.entries(authorityAnalysis?.gemini || {}).map(([category, results]) => (
+            <ReportSection 
+              key={`gemini-${category}`}
+              title={`Gemini: ${category.replace(/_/g, ' ')}`}
+              data={results}
+              icon={<ContentPasteSearchIcon color="secondary"/>} 
+            />
+          ))}
+          
+          {/* Detailed OpenAI Analysis - Safely access nested properties */}
+          {Object.entries(authorityAnalysis?.openai || {}).map(([category, results]) => (
+            <ReportSection 
+              key={`openai-${category}`}
+              title={`OpenAI: ${category.replace(/_/g, ' ')}`}
+              data={results}
+              icon={<ContentPasteSearchIcon color="action"/>} 
+            />
+          ))}
         </Grid>
-
-        {/* Authority Audit Card */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>Authority Audit</Typography>
-            <Chip label={`SCORE: ${report?.authorityAudit?.score ?? 0} / 100`} color="primary" sx={{ my: 1, px: 1 }} />
-            
-            <Typography variant="subtitle1" sx={{ mt: 2, display: 'flex', alignItems: 'center' }}><InsightsIcon sx={{mr:1}}/>Insights</Typography>
-            <List dense>
-              {(report?.authorityAudit?.insights ?? []).map((insight, index) => (
-                <ListItem key={index} sx={{pl:0}}><ListItemText primary={insight} primaryTypographyProps={{textTransform: 'none'}}/></ListItem>
-              ))}
-            </List>
-
-            <Typography variant="subtitle1" sx={{ mt: 2, display: 'flex', alignItems: 'center' }}><CheckCircleIcon color="success" sx={{mr:1}}/>Recommendations</Typography>
-            <List dense>
-              {(report?.authorityAudit?.recommendations ?? []).map((rec, index) => (
-                 <ListItem key={index} sx={{pl:0}}><ListItemText primary={rec} primaryTypographyProps={{textTransform: 'none'}}/></ListItem>
-              ))}
-            </List>
-          </Paper>
-        </Grid>
-
-        {/* Authority Analysis Drilldown */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, height: '100%' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">Deep Dive</Typography>
-              <ToggleButtonGroup value={selectedLlm} exclusive onChange={handleLlmChange} size="small">
-                <ToggleButton value="gemini">Gemini</ToggleButton>
-                <ToggleButton value="openai">OpenAI</ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-
-            {Object.keys(llmResults).map((categoryKey) => (
-              <Accordion key={categoryKey} sx={{ backgroundImage: 'none', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.23)' }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography>{categoryKey.replace(/_/g, ' ')}</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{p:0}}>
-                  <List sx={{ width: '100%' }}>
-                    {/* FIX: Safely access original prompts with a fallback */}
-                    {(originalPrompts?.[categoryKey] ?? []).map((prompt, index) => (
-                      <React.Fragment key={index}>
-                         <QnaItem prompt={prompt} response={llmResults[categoryKey]?.[index] || "No response generated."} />
-                        {index < (originalPrompts?.[categoryKey]?.length ?? 0) - 1 && <Divider sx={{ my: 2 }} />}
-                      </React.Fragment>
-                    ))}
-                  </List>
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </Paper>
-        </Grid>
-      </Grid>
+      </Paper>
     </Box>
   );
 }
