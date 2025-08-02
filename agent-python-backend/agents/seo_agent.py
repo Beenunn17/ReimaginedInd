@@ -122,7 +122,7 @@ async def analyze_authority_results(gemini_results: dict, openai_results: dict, 
 
 def generate_prompts_for_url(url: str, competitors_str: str, project_id: str, location: str) -> dict:
     vertexai.init(project=project_id, location=location)
-    generative_model = GenerativeModel("gemini-1.5-flash-preview-0514")
+    generative_model = GenerativeModel("gemini-2.5-flash")
     try:
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
@@ -155,7 +155,7 @@ async def run_full_seo_analysis(websocket, project_id: str, location: str, your_
     print(f"Analyzing site: {your_site_url} against competitors: {competitor_urls}")
 
     vertexai.init(project=project_id, location=location)
-    gemini_model = GenerativeModel("gemini-1.5-pro-preview-0409")
+    gemini_model = GenerativeModel("gemini-2.5-pro")
     
     openai_api_key = get_openai_api_key(project_id, "OpenAPIKey")
     if not openai_api_key:
@@ -193,7 +193,7 @@ async def run_full_seo_analysis(websocket, project_id: str, location: str, your_
     schema_audit_result = await analyze_schema(scraped_schemas, gemini_model)
     
     await websocket.send_json({"log": "Running authority analysis on Gemini..."})
-    gemini_task = run_authority_prompts_on_llm(gemini_model, "gemini-1.5-pro-preview-0409", prompts, brand_name)
+    gemini_task = run_authority_prompts_on_llm(gemini_model, "gemini-2.5-flash", prompts, brand_name)
     
     await websocket.send_json({"log": "Running authority analysis on OpenAI..."})
     openai_task = run_authority_prompts_on_llm(openai_client, "gpt-4o", prompts, brand_name, is_openai=True)
