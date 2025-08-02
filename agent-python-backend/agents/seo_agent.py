@@ -163,15 +163,25 @@ def generate_prompts_for_url(url: str, competitors_str: str, project_id: str, lo
         return {"error": f"An error occurred: {str(e)}"}
 
 # UPDATED to initialize and use Playwright
-async def run_full_seo_analysis(websocket, project_id: str, location: str, your_site: str, competitors: list[str], prompts: dict) -> dict:
+# In agent-python-backend/agents/seo_agent.py
+
+# THIS IS THE NEW, CORRECTED CODE:
+async def run_full_seo_analysis(websocket, project_id: str, location: str, your_site: dict, competitors: list[dict], prompts: dict) -> dict:
     await websocket.send_json({"status": "progress", "message": "Initializing clients..."})
+    
+    # Extract the URL from the dictionary
+    your_site_url = your_site.get("url")
+    if not your_site_url:
+        raise ValueError("your_site URL is missing from the payload.")
+
     vertexai.init(project=project_id, location=location)
-    gemini_model = GenerativeModel("gemini-2.5-pro")
+    gemini_model = GenerativeModel("gemini-1.5-pro-preview-0409")
     openai_api_key = get_openai_api_key(project_id, "OpenAPIKey")
     if not openai_api_key:
         raise ValueError("OpenAI API key not found.")
     openai_client = AsyncOpenAI(api_key=openai_api_key)
-    brand_name = httpx.URL(your_site).host.replace('www.', '').split('.')[0].capitalize()
+    brand_name = httpx.URL(your_site_url).host.replace('www.', '').split('.')[0].capitalize()
+    # ... rest of the function is the same
 
     # Initialize Playwright and a browser instance
     async with async_playwright() as p:

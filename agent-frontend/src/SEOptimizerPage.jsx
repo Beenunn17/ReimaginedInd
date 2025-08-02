@@ -274,21 +274,25 @@ function SEOptimizerPage() {
       ws.current.send(JSON.stringify(payload));
     };
 
-    ws.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.log) {
-        setLogs(prevLogs => [...prevLogs, { status: 'running', message: data.log, timestamp: new Date() }]);
-      } else if (data.report) {
-        setAnalysisResult(data.report);
-        setLogs(prevLogs => [...prevLogs, { status: 'success', message: "Analysis complete! Report generated.", timestamp: new Date() }]);
-        setIsAnalyzing(false);
-        ws.current.close();
-      } else if (data.error) {
-         setError(`An analysis error occurred: ${data.error}`);
-         setLogs(prevLogs => [...prevLogs, { status: 'error', message: data.error, timestamp: new Date() }]);
-         setIsAnalyzing(false);
-      }
-    };
+   // In agent-frontend/src/SEOptimizerPage.jsx
+
+// THIS IS THE NEW, CORRECTED CODE:
+ws.current.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.log) {
+    setLogs(prevLogs => [...prevLogs, { status: 'running', message: data.log, timestamp: new Date() }]);
+  } else if (data.report) {
+    setAnalysisResult(data.report);
+    setLogs(prevLogs => [...prevLogs, { status: 'success', message: "Analysis complete! Report generated.", timestamp: new Date() }]);
+    setIsAnalyzing(false);
+    ws.current.close();
+  } else if (data.status === 'error') { // This condition is now correct
+     const errorMessage = data.message || 'An unknown error occurred.';
+     setError(`An analysis error occurred: ${errorMessage}`);
+     setLogs(prevLogs => [...prevLogs, { status: 'error', message: errorMessage, timestamp: new Date() }]);
+     setIsAnalyzing(false);
+  }
+};
 
     ws.current.onerror = (error) => {
       console.error("WebSocket error:", error);
