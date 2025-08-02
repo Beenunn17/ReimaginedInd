@@ -125,7 +125,7 @@ function CreativePage() {
     const [sceneDescription, setSceneDescription] = useState('A minimalist cafe with clean, bright lighting.');
     const [platform, setPlatform] = useState('meta');
     const [isLoading, setIsLoading] = useState(false);
-    const [imageUrl, setImageUrl] = useState(null);
+    const [imageUrls, setImageUrls] = useState([]);
     const [subjectImage, setSubjectImage] = useState(null);
     const [sceneImage, setSceneImage] = useState(null);
 
@@ -135,7 +135,7 @@ function CreativePage() {
 
     const handleGenerate = async () => {
         setIsLoading(true);
-        setImageUrl(null);
+        setImageUrls([]);
         const formData = new FormData();
         
         for (const [key, value] of Object.entries(promptOptions)) {
@@ -159,7 +159,7 @@ function CreativePage() {
                 throw new Error(err.detail || 'Failed to generate creative.');
             }
             const data = await response.json();
-            setImageUrl(data.image_url);
+            setImageUrls(data.image_urls);
         } catch (error) {
             alert(error.message);
         } finally {
@@ -203,12 +203,18 @@ function CreativePage() {
                     </Grid>
                     <Grid item xs={12} md={7} lg={8}>
                         <Typography variant="h6" component="h2" gutterBottom>2. Generated Asset</Typography>
-                        <Paper variant="outlined" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: {xs: 400, md: 'calc(100% - 48px)'}, backgroundColor: 'background.default' }}>
+                        <Paper variant="outlined" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: {xs: 'auto', md: 'calc(100% - 48px)'}, backgroundColor: 'background.default', p: 2 }}>
                             {isLoading && <CircularProgress />}
-                            {!isLoading && imageUrl && (
-                                <Card sx={{ width: '100%', height: '100%', bgcolor: 'transparent' }} elevation={0}>
-                                    <CardMedia component="img" image={imageUrl} alt="Generated Creative" sx={{ objectFit: 'contain', width: '100%', height: '100%' }} />
-                                </Card>
+                            {!isLoading && imageUrls.length > 0 && (
+                                <Grid container spacing={2}>
+                                    {imageUrls.map((url, index) => (
+                                        <Grid item xs={6} key={index}>
+                                            <Card sx={{ width: '100%', height: '100%', bgcolor: 'transparent' }} elevation={0}>
+                                                <CardMedia component="img" image={url} alt={`Generated Creative ${index + 1}`} sx={{ objectFit: 'contain', width: '100%', height: '100%' }} />
+                                            </Card>
+                                        </Grid>
+                                    ))}
+                                </Grid>
                             )}
                         </Paper>
                     </Grid>

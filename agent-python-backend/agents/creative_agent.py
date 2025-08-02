@@ -60,44 +60,49 @@ def generate_ad_creative(
     negative_prompt = prompt_components.get('negativePrompt', '')
     
     try:
-        generation_params = {
-            "negative_prompt": negative_prompt,
-            "number_of_images": 1
-        }
+        image_urls = []
+        for _ in range(4):
+            generation_params = {
+                "negative_prompt": negative_prompt,
+                "number_of_images": 1
+            }
 
-        if subject_image:
-            scene_details = f"A new background scene described as: {prompt_components.get('sceneDescription', 'a clean studio background')}."
-            style_details = ", ".join(filter(None, [
-                PROMPT_ENHANCEMENTS["style"].get(prompt_components.get('style')),
-                PROMPT_ENHANCEMENTS["camera"].get(prompt_components.get('camera')),
-                PROMPT_ENHANCEMENTS["lighting"].get(prompt_components.get('lighting')),
-                PROMPT_ENHANCEMENTS["composition"].get(prompt_components.get('composition')),
-                PROMPT_ENHANCEMENTS["modifiers"].get(prompt_components.get('modifiers'))
-            ]))
-            final_prompt = f"Task: Image Composition. Isolate the subject from the base image and place it in a new scene: \"{scene_details}\". The final composite must have this style: {style_details}. The final image should be a {prompt_components.get('imageType', 'product photo')}."
-            generation_params["prompt"] = final_prompt
-            generation_params["base_image"] = subject_image
-            response = model.edit_image(**generation_params)
-        else:
-            prompt_parts = [
-                prompt_components.get('imageType', 'Product Photo'), "of",
-                prompt_components.get('customSubject', 'a product'),
-                "in a scene described as:", prompt_components.get('sceneDescription', 'a clean studio background')
-            ]
-            for key in ['style', 'camera', 'lighting', 'composition', 'modifiers']:
-                enhanced_prompt = PROMPT_ENHANCEMENTS[key].get(prompt_components.get(key))
-                if enhanced_prompt:
-                    prompt_parts.append(enhanced_prompt)
-            final_prompt = ", ".join(prompt_parts)
-            generation_params["prompt"] = final_prompt
-            generation_params["aspect_ratio"] = "1:1" if platform.lower() == 'meta' else "9:16"
-            response = model.generate_images(**generation_params)
+            if subject_image:
+                scene_details = f"A new background scene described as: {prompt_components.get('sceneDescription', 'a clean studio background')}."
+                style_details = ", ".join(filter(None, [
+                    PROMPT_ENHANCEMENTS["style"].get(prompt_components.get('style')),
+                    PROMPT_ENHANCEMENTS["camera"].get(prompt_components.get('camera')),
+                    PROMPT_ENHANCEMENTS["lighting"].get(prompt_components.get('lighting')),
+                    PROMPT_ENHANCEMENTS["composition"].get(prompt_components.get('composition')),
+                    PROMPT_ENHANCEMENTS["modifiers"].get(prompt_components.get('modifiers'))
+                ]))
+                final_prompt = f"Task: Image Composition. Isolate the subject from the base image and place it in a new scene: \"{scene_details}\". The final composite must have this style: {style_details}. The final image should be a {prompt_components.get('imageType', 'product photo')}."
+                generation_params["prompt"] = final_prompt
+                generation_params["base_image"] = subject_image
+                response = model.edit_image(**generation_params)
+            else:
+                prompt_parts = [
+                    prompt_components.get('imageType', 'Product Photo'), "of",
+                    prompt_components.get('customSubject', 'a product'),
+                    "in a scene described as:", prompt_components.get('sceneDescription', 'a clean studio background')
+                ]
+                for key in ['style', 'camera', 'lighting', 'composition', 'modifiers']:
+                    enhanced_prompt = PROMPT_ENHANCEMENTS[key].get(prompt_components.get(key))
+                    if enhanced_prompt:
+                        prompt_parts.append(enhanced_prompt)
+                final_prompt = ", ".join(prompt_parts)
+                generation_params["prompt"] = final_prompt
+                generation_params["aspect_ratio"] = "1:1" if platform.lower() == 'meta' else "9:16"
+                response = model.generate_images(**generation_params)
+            
+            if response.images:
+                for image in response.images:
+                    image_bytes = image._image_bytes
+                    encoded_string = base64.b64encode(image_bytes).decode('utf-8')
+                    image_urls.append(f"data:image/png;base64,{encoded_string}")
         
-        if response.images:
-            image_bytes = response.images[0]._image_bytes
-            encoded_string = base64.b64encode(image_bytes).decode('utf-8')
-            # Always return an image_url now
-            return {"image_url": f"data:image/png;base64,{encoded_string}"}
+        if image_urls:
+            return {"image_urls": image_urls}
             
         return None
         
