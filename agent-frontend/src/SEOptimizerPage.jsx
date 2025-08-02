@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Button, Typography, Paper, Grid, TextField, CircularProgress, List, ListItem, ListItemText,
   ListItemIcon, Accordion, AccordionSummary, AccordionDetails, Alert
@@ -9,8 +10,6 @@ import WarningIcon from '@mui/icons-material/Warning';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ScienceIcon from '@mui/icons-material/Science';
-import PageviewIcon from '@mui/icons-material/Pageview';
-import ContentPasteSearchIcon from '@mui/icons-material/ContentPasteSearch';
 
 // Use Vite's syntax for environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
@@ -113,50 +112,15 @@ const PromptSection = ({ prompts, onGenerate, isGenerating, error }) => (
   </>
 );
 
-// --- Sub-Component for Final Report Display ---
-const ReportDisplay = ({ result }) => {
-    if (!result) return null;
-    
-    const renderSection = (title, data, icon) => (
-      <Grid item xs={12} md={6} key={title}>
-        <Accordion defaultExpanded>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-             {icon} <Typography sx={{ml: 1, fontWeight: 'bold'}}>{title}</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            {Array.isArray(data) ? (
-              <List dense>
-                {data.map((item, index) => <ListItem key={index}><ListItemText primary={item.point || item} /></ListItem>)}
-              </List>
-            ) : (
-              <Typography variant="body2">{typeof data === 'object' ? JSON.stringify(data, null, 2) : data}</Typography>
-            )}
-          </AccordionDetails>
-        </Accordion>
-      </Grid>
-    );
-
-    return (
-        <Box sx={{ mt: 4 }}>
-            <Typography variant="h5" component="h3" gutterBottom>{result.reportTitle || 'Final Analysis Report'}</Typography>
-            <Grid container spacing={2}>
-              {result.keyword_gap_analysis && renderSection("Keyword Gap Analysis", result.keyword_gap_analysis, <TravelExploreIcon color="primary"/>)}
-              {result.on_page_seo_audit && renderSection("On-Page SEO Audit", result.on_page_seo_audit, <PageviewIcon color="primary"/>)}
-              {result.content_recommendations && renderSection("Content Recommendations", result.content_recommendations, <ContentPasteSearchIcon color="primary"/>)}
-            </Grid>
-        </Box>
-    )
-};
-
-
 // --- Main Page Component ---
 function SEOptimizerPage() {
+  const navigate = useNavigate(); // Hook for navigation
+  
   // State
   const [yourSite, setYourSite] = useState('');
   const [competitorSites, setCompetitorSites] = useState('');
   const [prompts, setPrompts] = useState(null);
   const [sitemapStatus, setSitemapStatus] = useState([]);
-  const [analysisResult, setAnalysisResult] = useState(null);
   const [logs, setLogs] = useState([]);
   
   // Loading and Error States
@@ -250,7 +214,6 @@ function SEOptimizerPage() {
   const handleRunAnalysis = () => {
     setIsAnalyzing(true);
     setLogs([]);
-    setAnalysisResult(null);
     setError(null);
 
     // Use secure WebSocket protocol wss://
@@ -274,25 +237,23 @@ function SEOptimizerPage() {
       ws.current.send(JSON.stringify(payload));
     };
 
-   // In agent-frontend/src/SEOptimizerPage.jsx
-
-// THIS IS THE NEW, CORRECTED CODE:
-ws.current.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  if (data.log) {
-    setLogs(prevLogs => [...prevLogs, { status: 'running', message: data.log, timestamp: new Date() }]);
-  } else if (data.report) {
-    setAnalysisResult(data.report);
-    setLogs(prevLogs => [...prevLogs, { status: 'success', message: "Analysis complete! Report generated.", timestamp: new Date() }]);
-    setIsAnalyzing(false);
-    ws.current.close();
-  } else if (data.status === 'error') { // This condition is now correct
-     const errorMessage = data.message || 'An unknown error occurred.';
-     setError(`An analysis error occurred: ${errorMessage}`);
-     setLogs(prevLogs => [...prevLogs, { status: 'error', message: errorMessage, timestamp: new Date() }]);
-     setIsAnalyzing(false);
-  }
-};
+    ws.current.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.log) {
+            setLogs(prevLogs => [...prevLogs, { status: 'running', message: data.log, timestamp: new Date() }]);
+        } else if (data.report) {
+            // Navigate to the report page with the report data
+            navigate('/seo-report', { state: { report: data.report } });
+            setLogs(prevLogs => [...prevLogs, { status: 'success', message: "Analysis complete! Redirecting to report...", timestamp: new Date() }]);
+            setIsAnalyzing(false);
+            ws.current.close();
+        } else if (data.status === 'error') {
+            const errorMessage = data.message || 'An unknown error occurred.';
+            setError(`An analysis error occurred: ${errorMessage}`);
+            setLogs(prevLogs => [...prevLogs, { status: 'error', message: errorMessage, timestamp: new Date() }]);
+            setIsAnalyzing(false);
+        }
+    };
 
     ws.current.onerror = (error) => {
       console.error("WebSocket error:", error);
@@ -334,7 +295,7 @@ ws.current.onmessage = (event) => {
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Typography variant="h6" component="h2" gutterBottom>3. Agent Status & Results</Typography>
+            <Typography variant="h6" component="h2" gutterBottom>3. Agent Status</Typography>
             <Paper variant="outlined" sx={{ p: 2, height: '400px', backgroundColor: '#0d1117', overflowY: 'auto' }}>
               <List dense>
                 {logs.length === 0 && !isAnalyzing && <ListItemText primary="Logs will appear here once the analysis begins." sx={{color: 'grey.500'}}/>}
@@ -364,8 +325,6 @@ ws.current.onmessage = (event) => {
             </Button>
           </Grid>
         </Grid>
-
-        <ReportDisplay result={analysisResult} />
       </Paper>
     </Box>
   );
