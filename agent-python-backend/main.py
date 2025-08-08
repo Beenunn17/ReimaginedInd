@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi.responses import JSONResponse
 
 # Import agent functions
-from agents.data_science_agent import run_standard_agent, run_follow_up_agent
+from agents.data_science_agent import run_standard_agent, run_bayesian_mmm_agent, run_follow_up_agent
 from agents.seo_agent import find_sitemap, generate_prompts_for_url, run_full_seo_analysis
 from agents.creative_agent import generate_ad_creative
 from agents import brand_strategist_agent
@@ -120,14 +120,25 @@ async def generate_creative_endpoint(
 async def get_data_preview(dataset_filename: str):
     filepath = os.path.join(DATA_DIR, dataset_filename)
     df = pd.read_csv(filepath)
-    df = df.round(2)
-    return json.loads(df.head().to_json(orient='split'))
+    return json.loads(df.head(3).to_json(orient='split'))
 
 @app.post("/analyze")
-async def analyze_data(dataset_filename: str = Form(...), prompt: str = Form(...)):
+async def analyze_data(
+    dataset_filename: str = Form(...), 
+    prompt: str = Form(...),
+    model_type: str = Form("standard"),
+    revenue_target: Optional[float] = Form(0)
+):
     filepath = os.path.join(DATA_DIR, dataset_filename)
     dataframe = pd.read_csv(filepath)
-    result = run_standard_agent(dataframe, prompt, PROJECT_ID, LOCATION, MODEL_NAME)
+    
+    if model_type == 'bayesian' and 'mmm' in dataset_filename:
+        # Route to the Bayesian MMM agent
+        result = run_bayesian_mmm_agent(dataframe, PROJECT_ID, LOCATION, MODEL_NAME, revenue_target)
+    else:
+        # Route to the standard agent for all other cases
+        result = run_standard_agent(dataframe, prompt, PROJECT_ID, LOCATION, MODEL_NAME)
+        
     return result
 
 @app.post("/follow-up")
@@ -140,12 +151,7 @@ async def follow_up_analysis(
     filepath = os.path.join(DATA_DIR, dataset_filename)
     dataframe = pd.read_csv(filepath)
     history_list = json.loads(follow_up_history)
-    history_str = ""
-    for turn in history_list:
-        if turn.get('sender') == 'user':
-            history_str += f"User: {turn.get('text')}\n"
-        elif turn.get('sender') == 'agent':
-            history_str += f"Agent: {turn.get('summary')}\n"
+    history_str = "".join([f"User: {turn['text']}\n" if turn['sender'] == 'user' else f"Agent: {turn['summary']}\n" for turn in history_list])
     result = run_follow_up_agent(dataframe, original_prompt, history_str, follow_up_prompt, PROJECT_ID, LOCATION, MODEL_NAME)
     return result
 

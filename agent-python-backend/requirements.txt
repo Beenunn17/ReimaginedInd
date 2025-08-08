@@ -1,12 +1,22 @@
 fastapi
 uvicorn
-pandas
-google-cloud-aiplatform
-google-cloud-secret-manager
-openai
+python-multipart
+pandas==2.1.4
+matplotlib==3.6.1
+numpy==1.26.2
+scipy==1.11.2
 httpx
 beautifulsoup4
 playwright
-matplotlib
-python-multipart
-scipy
+lxml
+vertexai
+google-cloud-aiplatform
+google-cloud-secret-manager
+openai==1.3.3  # <-- ADD THIS LINE
+
+# --- Stable MMM & JAX Dependencies for ARM Architectures ---
+jax==0.4.23
+jaxlib==0.4.23
+numpyro==0.13.2
+lightweight_mmm==0.1.9
+arviz==0.15.1	

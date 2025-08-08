@@ -16,24 +16,14 @@ const agentCards = [
     link: '/forecast'
   },
   {
-    icon: <TravelExploreIcon sx={{ fontSize: 40 }} />,
-    title: 'AI Search Agent',
-    description: 'Integrate paid, organic, and marketplace search strategies driven by a unified AI core.',
-    link: '#' // Placeholder link
-  },
-  {
     icon: <CampaignIcon sx={{ fontSize: 40 }} />,
-    title: 'Campaign Automation Agent',
+    title: 'Generative Marketing Suite',
     description: 'Automate entire marketing campaigns from creative brief and audience creation to final trafficking.',
-    link: '#' // Placeholder link
-  },
-  {
-    icon: <AutoAwesomeIcon sx={{ fontSize: 40 }} />,
-    title: 'Generative Marketing Agent',
-    description: 'Your primary chat interface for brainstorming, content creation, and strategic marketing insights.',
-    link: '/chat'
+    // --- THIS IS THE FIX ---
+    link: '/creative' 
   }
 ];
+
 
 function HomePage() {
   return (
@@ -41,10 +31,10 @@ function HomePage() {
       {/* Hero Section */}
       <Box className="hero-section">
         <Typography variant="h2" component="h1" className="hero-title">
-          Solving Complex Problems with AI
+          Reimagined Industries 
         </Typography>
         <Typography variant="h5" className="hero-subtitle">
-          Braid.ai is a modern consultancy focused on integrating artificial intelligence to drive real-world results.
+          A modern consultancy focused on integrating artificial intelligence to drive real-world results.
         </Typography>
       </Box>
 

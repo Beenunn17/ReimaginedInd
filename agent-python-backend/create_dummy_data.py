@@ -1,5 +1,3 @@
-# agent-python-backend/create_dummy_data.py
-
 import pandas as pd
 import numpy as np
 import os
@@ -11,6 +9,9 @@ if not os.path.exists(output_dir):
 
 def create_all_datasets():
     """Generates all dummy CSV files required by the frontend."""
+    # By setting a seed, we ensure the "random" data is the same every time.
+    np.random.seed(42)
+
     num_records = 1000
     start_date = datetime(2022, 1, 1)
 
@@ -20,7 +21,6 @@ def create_all_datasets():
     mmm_data = {
         'Date': dates,
         'Sales': np.random.uniform(150000, 500000, num_weeks).round(2),
-        # --- 10 Media Channels ---
         'TV_Spend': np.random.uniform(20000, 70000, num_weeks).round(2),
         'Radio_Spend': np.random.uniform(10000, 30000, num_weeks).round(2),
         'Social_Media_Spend': np.random.uniform(15000, 50000, num_weeks).round(2),
@@ -31,12 +31,14 @@ def create_all_datasets():
         'Direct_Mail_Spend': np.random.uniform(3000, 18000, num_weeks).round(2),
         'Podcast_Spend': np.random.uniform(4000, 22000, num_weeks).round(2),
         'Influencer_Spend': np.random.uniform(6000, 35000, num_weeks).round(2),
-        # --- External Factors ---
         'Competitor_Spend': np.random.uniform(50000, 150000, num_weeks).round(2),
         'Inflation_Index': np.linspace(1.0, 1.08, num_weeks).round(3)
     }
     pd.DataFrame(mmm_data).to_csv(os.path.join(output_dir, 'mmm_advanced_data.csv'), index=False)
     print("Created detailed mmm_advanced_data.csv")
+    
+    # Other datasets... (no changes needed for the rest of the file)
+    # ...
 
     # 2. Customer Churn
     churn_data = {

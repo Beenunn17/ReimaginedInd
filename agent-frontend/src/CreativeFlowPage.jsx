@@ -110,12 +110,11 @@ function CreativeFlowPage({ brandContext, selectedApproach, onBackToStrategy }) 
                                 {generatedCopy.map((post, index) => (
                                     <Grid item xs={12} md={4} key={index}>
                                         <Paper variant="outlined" sx={{p: 2, height: '100%'}}>
+                                            {/* --- THIS IS THE FIX: Using Capitalized Keys --- */}
                                             <Typography variant="subtitle1" fontWeight="bold">{post.Hook}</Typography>
                                             <Typography variant="body2" sx={{my: 1}}>{post.Body}</Typography>
                                             <Typography variant="body2" fontWeight="bold">{post.CTA}</Typography>
                                             
-                                            {/* --- THIS IS THE FIX --- */}
-                                            {/* It checks if Hashtags exists and is an array before trying to join it */}
                                             {post.Hashtags && Array.isArray(post.Hashtags) && (
                                                 <Typography variant="caption" color="text.secondary" sx={{mt: 2, display: 'block'}}>
                                                     {post.Hashtags.join(' ')}

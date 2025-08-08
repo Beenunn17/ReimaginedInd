@@ -1,30 +1,51 @@
 import vertexai
-from vertexai.generative_models import GenerativeModel
+from vertexai.generative_models import GenerativeModel, Part
 import re
 import json
+from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright # --- Import Playwright ---
+import base64
 
-async def get_text_from_url_playwright(url: str) -> str:
-    """Uses Playwright to fetch and parse text content from a URL."""
+async def analyze_url_with_playwright(url: str) -> dict:
+    """
+    Uses Playwright to fetch text content AND take a screenshot of a URL.
+    This version is optimized for speed.
+    """
+    text_content = f"Could not fetch text content from {url}"
+    screenshot_b64 = None
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             page = await browser.new_page()
-            await page.goto(url, timeout=60000)
+            
+            # --- THIS IS THE OPTIMIZATION ---
+            # 1. Increased timeout to 20 seconds to handle slow pages.
+            # 2. Changed 'wait_until' to 'domcontentloaded' which is much faster 
+            #    than 'networkidle' as it doesn't wait for tracking scripts.
+            await page.goto(url, timeout=20000, wait_until='domcontentloaded')
+            
+            # Take a screenshot after the DOM is loaded
+            screenshot_bytes = await page.screenshot(full_page=True)
+            screenshot_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+
+            # Get the page content
             html_content = await page.content()
             await browser.close()
-
+            
             soup = BeautifulSoup(html_content, 'html.parser')
             for script_or_style in soup(["script", "style"]):
                 script_or_style.decompose()
-            text = soup.get_text()
-            lines = (line.strip() for line in text.splitlines())
+            raw_text = soup.get_text()
+            lines = (line.strip() for line in raw_text.splitlines())
             chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            return '\n'.join(chunk for chunk in chunks if chunk)
+            text_content = '\n'.join(chunk for chunk in chunks if chunk)
+            
     except Exception as e:
-        print(f"Playwright failed to fetch {url}: {e}")
-        return f"An error occurred while fetching the content: {e}"
+        error_message = f"Playwright failed to fetch {url}: {e}"
+        print(error_message)
+        text_content = error_message
+        
+    return {"text": text_content, "screenshot": screenshot_b64}
 
 
 async def analyze_brand_with_llm(
@@ -36,56 +57,58 @@ async def analyze_brand_with_llm(
     user_brief: str
 ) -> dict:
     """
-    Analyzes brand content using Playwright for fetching and an LLM for strategy.
+    Performs multimodal analysis if possible, with a graceful fallback to text-only.
     """
-    print(f"Starting LLM analysis for brand: {brand_name}")
+    print(f"Starting analysis for brand: {brand_name}")
     vertexai.init(project=project_id, location=location)
-    model = GenerativeModel("gemini-2.5-pro")
+    model = GenerativeModel("gemini-2.5-pro") 
 
-    # --- Step 1: Fetch content using Playwright ---
-    website_content = await get_text_from_url_playwright(website_url)
+    website_analysis = await analyze_url_with_playwright(website_url)
+    website_content = website_analysis["text"]
+    website_screenshot_b64 = website_analysis["screenshot"]
+
     ad_library_content = "No Ad Library URL provided."
     if ad_library_url:
-        ad_library_content = await get_text_from_url_playwright(ad_library_url)
+        ad_library_analysis = await analyze_url_with_playwright(ad_library_url)
+        ad_library_content = ad_library_analysis["text"]
 
-    # --- Step 2: Construct the Master Prompt for the LLM ---
-    master_prompt = f"""
-    You are a world-class brand strategist. Your task is to analyze the provided information and develop three distinct, actionable creative approaches for a new marketing campaign.
+    prompt_content = [
+        f"You are a world-class brand strategist. Your task is to analyze the provided information and develop three distinct creative strategies."
+        f"\n\n**CONTEXT:**"
+        f"\n- **User's Creative Brief:** \"{user_brief}\""
+        f"\n- **Website Text Content:** \"{website_content[:2000]}\""
+        f"\n- **Ad Library Text Content:** \"{ad_library_content[:2000]}\""
+    ]
 
-    **Brand Information:**
-    - **Brand Name:** {brand_name}
-    - **User's Creative Brief:** "{user_brief}"
-    - **Raw Content from their Website:** "{website_content[:3000]}"
-    - **Raw Content from their Meta Ad Library:** "{ad_library_content[:3000]}"
+    if website_screenshot_b64:
+        print("Screenshot successful. Performing MULTIMODAL analysis...")
+        image_part = Part.from_data(data=base64.b64decode(website_screenshot_b64), mime_type="image/png")
+        prompt_content.insert(0, image_part)
+        prompt_content.insert(1, "\n\n**ANALYSIS TASK (Based on the Screenshot and Text):**" \
+                                 "\n1. **Visual Style:** Look at the screenshot. Describe the brand's visual language, color palette, and typography." \
+                                 "\n2. **Brand Voice:** Read the text. Describe the writing style and tone.")
+    else:
+        print("Screenshot failed. Falling back to TEXT-ONLY analysis...")
+        prompt_content.append("\n\n**ANALYSIS TASK (Based on the Text):**" \
+                              "\n**Brand Voice:** Read the text content. Describe the writing style and tone.")
 
-    **Your Task:**
-    Based on the information above, generate three creative strategy approaches. For each approach, provide a Title, a Core Idea, and a Description.
-    Format your response as a valid JSON object with a single key "approaches". Do not include any text before or after the JSON object.
-    """
+    prompt_content.append("\n\n**CREATIVE TASK:**" \
+                          "\nNow, generate three creative strategy approaches that align with the brand. For each approach, provide a Title, a Core Idea, and a Description." \
+                          "\nFormat your response as a valid JSON object with a single key \"approaches\". Do not include your analysis, only the final JSON.")
 
-    # --- Step 3: Call the LLM and robustly parse the response ---
     try:
-        print("Sending master prompt to the Gemini LLM...")
-        response = model.generate_content(master_prompt)
+        print("Sending prompt to the Gemini LLM...")
+        response = model.generate_content(prompt_content) 
         raw_llm_text = response.text
-        print(f"--- RAW LLM RESPONSE ---\n{raw_llm_text}\n-------------------------")
-
-        json_match = re.search(r'\{.*\}', raw_llm_text, re.DOTALL)
         
-        if json_match:
-            json_string = json_match.group(0)
-            # This will raise an error if the JSON is invalid, which is caught below
-            json.loads(json_string)
-            llm_response_to_send = json_string
-        else:
-            # If no JSON is found, the response itself is the error/problem
-            llm_response_to_send = raw_llm_text
-
-        return {
-            "llm_response": llm_response_to_send,
-            "fetched_website_content": website_content[:1000] + "...",
-            "fetched_ad_library_content": ad_library_content[:1000] + "..."
-        }
+        json_match = re.search(r'\{.*\}', raw_llm_text, re.DOTALL)
+        if not json_match:
+            raise ValueError(f"LLM did not return valid JSON. Raw response: {raw_llm_text}")
+        
+        json_string = json_match.group(0)
+        json.loads(json_string)
+        
+        return { "llm_response": json_string }
     except Exception as e:
         print(f"LLM generation or parsing failed: {e}")
-        return {"error": f"LLM generation failed: {e}", "raw_response_on_error": raw_llm_text}
+        return {"error": f"LLM generation failed: {e}"}

@@ -11,7 +11,7 @@ import './App.css';
 // Import all your page components
 import HomePage from './HomePage';
 // import ChatPage from './ChatPage'; // Chat is temporarily disabled
-import SEOptimizerPage from './SEOptimizerPage';
+// import SEOptimizerPage from './SEOptimizerPage';
 import ForecastPage from './ForecastPage';
 // Import the new Creative Hub page instead of the old CreativePage
 import CreativeHubPage from './CreativeHubPage'; 
@@ -84,12 +84,11 @@ function App() {
               <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
                 <MenuItem component={Link} to="/" onClick={handleClose}>Home</MenuItem>
                 {/* <MenuItem component={Link} to="/chat" onClick={handleClose}>Marketing Agent</MenuItem> */}
-                <MenuItem component={Link} to="/seo-optimizer" onClick={handleClose}>SEO Optimizer</MenuItem>
                 <MenuItem component={Link} to="/forecast" onClick={handleClose}>Data Science Agent</MenuItem>
-                <MenuItem component={Link} to="/creative" onClick={handleClose}>Creative Agent</MenuItem>
+                <MenuItem component={Link} to="/creative" onClick={handleClose}>Generative Marketing Suite</MenuItem>
               </Menu>
               <Box sx={{ flexGrow: 1 }} />
-              <img src="/logo.png" alt="Braid.ai Logo" style={{ height: '40px', borderRadius: '50%' }} />
+             
             </Toolbar>
           </AppBar>
 
@@ -97,7 +96,6 @@ function App() {
             <Routes>
               {/* <Route path="/chat" element={<ChatPage />} /> */}
               <Route path="/forecast" element={<ForecastPage />} />
-              <Route path="/seo-optimizer" element={<SEOptimizerPage />} />
                   {/* === THIS IS THE IMPORTANT CHANGE === */}
               <Route path="/creative" element={<CreativeHubPage />} /> 
               <Route path="/" element={<HomePage />} />
